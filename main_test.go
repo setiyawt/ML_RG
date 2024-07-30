@@ -101,7 +101,7 @@ value3,value4`
 			err := godotenv.Load()
 			Expect(err).ShouldNot(HaveOccurred())
 
-			result, err := connector.ConnectAIModel(payload, os.Getenv("HUGGINGFACE_TOKEN"))
+			result, _, err := connector.ConnectAIModel(payload, os.Getenv("HUGGINGFACE_TOKEN"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result).Should(Equal(expected))
 		})
@@ -149,7 +149,7 @@ value3,value4`
 			err := godotenv.Load()
 			Expect(err).ShouldNot(HaveOccurred())
 
-			result, err := connector.ConnectAIModel(payload, os.Getenv("HUGGINGFACE_TOKEN"))
+			result, _, err := connector.ConnectAIModel(payload, os.Getenv("HUGGINGFACE_TOKEN"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result).Should(Equal(expected))
 		})

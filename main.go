@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -29,7 +30,6 @@ type Response struct {
 }
 
 func CsvToSlice(data string) (map[string][]string, error) {
-	// TODO: replace this
 	reader := csv.NewReader(strings.NewReader(data))
 	reader.FieldsPerRecord = -1 // Allow inconsistent number of fields
 
@@ -60,16 +60,15 @@ func CsvToSlice(data string) (map[string][]string, error) {
 	return result, nil
 }
 
-func (c *AIModelConnector) ConnectAIModel(payload interface{}, token string) (Response, error) {
-	// TODO: replace this
+func (c *AIModelConnector) ConnectAIModel(payload interface{}, token string) (Response, *http.Response, error) {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
-		return Response{}, err
+		return Response{}, nil, err
 	}
 
 	req, err := http.NewRequest("POST", "https://api-inference.huggingface.co/models/google/tapas-base-finetuned-wtq", bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return Response{}, err
+		return Response{}, nil, err
 	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -77,63 +76,68 @@ func (c *AIModelConnector) ConnectAIModel(payload interface{}, token string) (Re
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return Response{}, err
+		return Response{}, nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return Response{}, err
+		return Response{}, nil, err
 	}
+
+	fmt.Printf("Status Code: %d\n", resp.StatusCode)
+	fmt.Printf("Response Body: %s\n", body)
 
 	var hfResponse Response
 	err = json.Unmarshal(body, &hfResponse)
 	if err != nil {
-		return Response{}, err
+		return Response{}, resp, err
 	}
 
-	return hfResponse, nil
+	return hfResponse, resp, nil
 }
 
 func main() {
-	// TODO: answer here
 	data, err := os.ReadFile("data-series.csv")
 	if err != nil {
 		fmt.Println("Error reading CSV file:", err)
 		return
 	}
 
-	// Convert CSV data to a slice
 	table, err := CsvToSlice(string(data))
 	if err != nil {
 		fmt.Println("Error converting CSV to slice:", err)
 		return
 	}
 
-	// Create an instance of AIModelConnector
 	connector := &AIModelConnector{
 		Client: &http.Client{},
 	}
 
-	// Prompt the user for a query
 	fmt.Print("Enter your query: ")
-	var query string
-	fmt.Scanln(&query)
+	reader := bufio.NewReader(os.Stdin)
+	query, _ := reader.ReadString('\n')
+	query = strings.TrimSpace(query)
 
-	// Connect to the AI model and get the response
 	payload := Inputs{
 		Table: table,
 		Query: query,
 	}
-	response, err := connector.ConnectAIModel(payload, "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")
+
+	fmt.Printf("Payload: %+v\n", payload)
+
+	response, httpResp, err := connector.ConnectAIModel(payload, "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")
 	if err != nil {
 		fmt.Println("Error connecting to AI model:", err)
 		return
 	}
 
-	// Print the response
-	fmt.Printf("Answer: %s\n", response.Answer)
-	fmt.Printf("Coordinates: %v\n", response.Coordinates)
-	fmt.Printf("Cells: %v\n", response.Cells)
-	fmt.Printf("Aggregator: %s\n", response.Aggregator)
+	fmt.Printf("Status Code: %d\n", httpResp.StatusCode)
+
+	if httpResp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(httpResp.Body)
+		fmt.Printf("Error Response: %s\n", string(body))
+	} else {
+		fmt.Printf("Response: %+v\n", response)
+	}
 }
